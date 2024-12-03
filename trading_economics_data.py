@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 
 def fetch_trading_economics_data(endpoint):
-    """Fetches data from Trading Economics API."""
+    """Fetches data from Trading Economics API with error handling."""
     url = f"https://api.tradingeconomics.com/{endpoint}"
     params = {
         "c": TRADING_ECONOMICS_API_KEY,
@@ -16,9 +16,14 @@ def fetch_trading_economics_data(endpoint):
     response = requests.get(url, params=params)
     try:
         data = response.json()
-    except ValueError:
-        return pd.DataFrame()  # Return empty DataFrame on error
-    return pd.DataFrame(data)
+        if isinstance(data, list):
+            return pd.DataFrame(data)
+        else:
+            return pd.DataFrame()  # Return empty DataFrame if response is not a list
+    except (ValueError, requests.RequestException) as e:
+        # Return an empty DataFrame if there's an error with the request or JSON decoding
+        print(f"Error fetching data from Trading Economics: {e}")
+        return pd.DataFrame()
 
 
 def get_global_stock_indices():
