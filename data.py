@@ -12,20 +12,24 @@ DATA_STORE_FILE = "data_store.json"
 
 def load_data():
     """Load stored data from JSON file with error handling."""
-    try:
-        if os.path.exists(DATA_STORE_FILE):
-            with open(DATA_STORE_FILE, "r") as file:
+    if os.path.exists(DATA_STORE_FILE):
+        with open(DATA_STORE_FILE, "r") as file:
+            try:
                 return json.load(file)
-        else:
-            # Initialize with default data if the file does not exist
-            return {"us_gdp": [], "unemployment_rate": [], "financial_stress": []}
-    except (json.JSONDecodeError, ValueError):
-        # If JSON is invalid or corrupted, reset to default structure
-        return {"us_gdp": [], "unemployment_rate": [], "financial_stress": []}
+            except json.JSONDecodeError:
+                # If JSON is invalid or corrupted, reset to default structure
+                return {"us_gdp": [], "unemployment_rate": [], "financial_stress": []}
+    # If file doesn't exist, return default structure
+    return {"us_gdp": [], "unemployment_rate": [], "financial_stress": []}
 
 
 def save_data(data):
     """Save data to JSON file."""
+    # Convert Timestamps to strings for serialization
+    for key in data:
+        for record in data[key]:
+            if isinstance(record['Date'], pd.Timestamp):
+                record['Date'] = record['Date'].strftime('%Y-%m-%d')
     with open(DATA_STORE_FILE, "w") as file:
         json.dump(data, file)
 
@@ -37,11 +41,20 @@ def fetch_fred_data(series_id, start_date, end_date):
         "series_id": series_id,
         "api_key": FRED_API_KEY,
         "file_type": "json",
-        "observation_start": start_date.strftime("%Y-%m-%d"),
-        "observation_end": end_date.strftime("%Y-%m-%d"),
+        "observation_start": start_date,
+        "observation_end": end_date,
     }
-    response = requests.get(url, params=params)
-    data = response.json().get("observations", [])
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()  # Raises an error if the response status code indicates failure
+        data = response.json().get("observations", [])
+    except requests.exceptions.RequestException as e:
+        print(f"HTTP Request failed: {e}")
+        return pd.DataFrame()
+    except json.JSONDecodeError:
+        print("Error decoding JSON response")
+        return pd.DataFrame()
+
     df = pd.DataFrame(data)
     if df.empty:
         return pd.DataFrame(columns=["Date", "Value"])
