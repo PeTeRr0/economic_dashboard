@@ -1,8 +1,15 @@
 import requests
 import pandas as pd
+import os
+from dotenv import load_dotenv
 
-# Replace 'YOUR_FRED_API_KEY' with your actual FRED API key
-FRED_API_KEY = "YOUR_FRED_API_KEY"
+# Load environment variables from .env file
+load_dotenv()
+
+# Fetch API keys from environment variables or Streamlit secrets
+FRED_API_KEY = os.getenv('FRED_API_KEY')
+TRADING_ECONOMICS_API_KEY = os.getenv('TRADING_ECONOMICS_API_KEY')
+
 
 def fetch_fred_data(series_id, start_date, end_date):
     """Fetch data from FRED API with additional logging."""
@@ -46,3 +53,51 @@ def fetch_fred_data(series_id, start_date, end_date):
     df["Date"] = pd.to_datetime(df["date"])
     df = df[["Date", "Value"]]
     return df
+
+def fetch_trading_economics_data(category):
+    """Fetch data from Trading Economics API."""
+    url = f"https://api.tradingeconomics.com/{category}"
+    params = {
+        "c": TRADING_ECONOMICS_API_KEY,
+    }
+
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        print(f"Trading Economics API Response: {response.text}")  # Debugging line
+
+        if response.status_code == 200 and response.text:
+            data = response.json()
+            return data
+        else:
+            print("No valid data found in the Trading Economics response.")
+            return []
+
+    except requests.exceptions.RequestException as e:
+        print(f"HTTP Request failed: {e}")
+        return []
+    except requests.exceptions.JSONDecodeError:
+        print("Error decoding JSON response from Trading Economics API")
+        return []
+
+def get_us_gdp():
+    """Get US GDP data from FRED API."""
+    start_date = "2023-01-01"
+    end_date = "2023-12-31"
+    return fetch_fred_data("GDP", start_date, end_date)
+
+def get_unemployment_rate():
+    """Get US Unemployment Rate data from FRED API."""
+    start_date = "2023-01-01"
+    end_date = "2023-12-31"
+    return fetch_fred_data("UNRATE", start_date, end_date)
+
+def get_financial_stress_index():
+    """Get Financial Stress Index data from FRED API."""
+    start_date = "2023-01-01"
+    end_date = "2023-12-31"
+    return fetch_fred_data("STLFSI2", start_date, end_date)
+
+def get_global_stock_indices():
+    """Get Global Stock Indices data from Trading Economics API."""
+    return fetch_trading_economics_data("markets/indices")
