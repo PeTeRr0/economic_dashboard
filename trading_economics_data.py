@@ -16,7 +16,11 @@ def fetch_trading_economics_data(endpoint):
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()  # Raise an error if the request failed
-        data = response.json()
+        if response.status_code == 200 and response.text:
+            data = response.json()
+        else:
+            print("No valid data found in the response.")
+            return pd.DataFrame()
     except requests.exceptions.RequestException as e:
         print(f"HTTP Request failed: {e}")
         return pd.DataFrame()
