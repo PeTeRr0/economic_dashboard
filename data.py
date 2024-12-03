@@ -11,11 +11,17 @@ DATA_STORE_FILE = "data_store.json"
 
 
 def load_data():
-    """Load stored data from JSON file."""
-    if os.path.exists(DATA_STORE_FILE):
-        with open(DATA_STORE_FILE, "r") as file:
-            return json.load(file)
-    return {"us_gdp": [], "unemployment_rate": [], "financial_stress": []}
+    """Load stored data from JSON file with error handling."""
+    try:
+        if os.path.exists(DATA_STORE_FILE):
+            with open(DATA_STORE_FILE, "r") as file:
+                return json.load(file)
+        else:
+            # Initialize with default data if the file does not exist
+            return {"us_gdp": [], "unemployment_rate": [], "financial_stress": []}
+    except (json.JSONDecodeError, ValueError):
+        # If JSON is invalid or corrupted, reset to default structure
+        return {"us_gdp": [], "unemployment_rate": [], "financial_stress": []}
 
 
 def save_data(data):
