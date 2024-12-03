@@ -31,7 +31,7 @@ def save_data(data):
             if isinstance(record['Date'], pd.Timestamp):
                 record['Date'] = record['Date'].strftime('%Y-%m-%d')
     with open(DATA_STORE_FILE, "w") as file:
-        json.dump(data, file)
+        json.dump(data, file, default=str)  # Ensure non-serializable objects are converted to strings
 
 
 def fetch_fred_data(series_id, start_date, end_date):
@@ -47,7 +47,11 @@ def fetch_fred_data(series_id, start_date, end_date):
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()  # Raises an error if the response status code indicates failure
-        data = response.json().get("observations", [])
+        if response.status_code == 200 and response.text:
+            data = response.json().get("observations", [])
+        else:
+            print("No valid data found in the response.")
+            return pd.DataFrame(columns=["Date", "Value"])
     except requests.exceptions.RequestException as e:
         print(f"HTTP Request failed: {e}")
         return pd.DataFrame()
