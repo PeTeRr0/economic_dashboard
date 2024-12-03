@@ -1,102 +1,116 @@
 import requests
 import pandas as pd
+import json
 import os
-from dotenv import load_dotenv
+from config import FRED_API_KEY
+from datetime import datetime, timedelta
 
-# Load environment variables from .env file
-load_dotenv()
+DATA_STORE_FILE = "data_store.json"
 
-# Fetch API keys from environment variables or Streamlit secrets
-FRED_API_KEY = os.getenv('FRED_API_KEY')
-TRADING_ECONOMICS_API_KEY = os.getenv('TRADING_ECONOMICS_API_KEY')
+
+def load_data():
+    """Load stored data from JSON file with error handling."""
+    if os.path.exists(DATA_STORE_FILE):
+        with open(DATA_STORE_FILE, "r") as file:
+            try:
+                return json.load(file)
+            except json.JSONDecodeError:
+                # If JSON is invalid or corrupted, reset to default structure
+                return {"us_gdp": [], "unemployment_rate": [], "financial_stress": []}
+    # If file doesn't exist, return default structure
+    return {"us_gdp": [], "unemployment_rate": [], "financial_stress": []}
+
+
+def save_data(data):
+    """Save data to JSON file."""
+    # Convert Timestamps to strings for serialization
+    for key in data:
+        for record in data[key]:
+            if isinstance(record['Date'], pd.Timestamp):
+                record['Date'] = record['Date'].strftime('%Y-%m-%d')
+    with open(DATA_STORE_FILE, "w") as file:
+        json.dump(data, file, default=str)  # Ensure non-serializable objects are converted to strings
 
 
 def fetch_fred_data(series_id, start_date, end_date):
-    """Fetch data from FRED API with additional logging."""
+    """Fetch data from FRED API."""
     url = "https://api.stlouisfed.org/fred/series/observations"
     params = {
         "series_id": series_id,
         "api_key": FRED_API_KEY,
         "file_type": "json",
-        "observation_start": start_date,
-        "observation_end": end_date,
+        "observation_start": start_date.strftime('%Y-%m-%d'),
+        "observation_end": end_date.strftime('%Y-%m-%d'),
     }
-
     try:
         response = requests.get(url, params=params)
-        response.raise_for_status()
-        # Print the response to the console so you can see it in Streamlit logs
-        print(f"API Response Text: {response.text}")
-
+        response.raise_for_status()  # Raises an error if the response status code indicates failure
         if response.status_code == 200 and response.text:
             data = response.json().get("observations", [])
         else:
             print("No valid data found in the response.")
             return pd.DataFrame(columns=["Date", "Value"])
-
     except requests.exceptions.RequestException as e:
-        # Print the error if something goes wrong
         print(f"HTTP Request failed: {e}")
         return pd.DataFrame()
-    except requests.exceptions.JSONDecodeError:
+    except json.JSONDecodeError:
         print("Error decoding JSON response")
         return pd.DataFrame()
 
-    # Create DataFrame from response data
     df = pd.DataFrame(data)
     if df.empty:
-        print("Received empty data frame.")
         return pd.DataFrame(columns=["Date", "Value"])
-
-    # Convert columns to appropriate types
     df["Value"] = pd.to_numeric(df["value"], errors="coerce")
     df["Date"] = pd.to_datetime(df["date"])
     df = df[["Date", "Value"]]
     return df
 
-def fetch_trading_economics_data(category):
-    """Fetch data from Trading Economics API."""
-    url = f"https://api.tradingeconomics.com/{category}"
-    params = {
-        "c": TRADING_ECONOMICS_API_KEY,
-    }
 
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        print(f"Trading Economics API Response: {response.text}")  # Debugging line
+def get_updated_data(series_id, data_key):
+    """Fetch updated data and accumulate it."""
+    # Load existing data
+    stored_data = load_data()
+    current_data = pd.DataFrame(stored_data[data_key])
 
-        if response.status_code == 200 and response.text:
-            data = response.json()
-            return data
-        else:
-            print("No valid data found in the Trading Economics response.")
-            return []
+    # Determine start and end date for new data
+    if current_data.empty:
+        start_date = datetime.today() - timedelta(days=100)
+    else:
+        last_date = pd.to_datetime(current_data["Date"]).max()
+        start_date = last_date + timedelta(days=1)
 
-    except requests.exceptions.RequestException as e:
-        print(f"HTTP Request failed: {e}")
-        return []
-    except requests.exceptions.JSONDecodeError:
-        print("Error decoding JSON response from Trading Economics API")
-        return []
+    end_date = datetime.today()
+
+    # Fetch new data
+    new_data = fetch_fred_data(series_id, start_date, end_date)
+
+    # Concatenate with existing data and remove duplicates
+    if not new_data.empty:
+        updated_data = pd.concat([current_data, new_data]).drop_duplicates(subset=["Date"]).reset_index(drop=True)
+    else:
+        updated_data = current_data
+
+    # Update the stored data
+    stored_data[data_key] = updated_data.to_dict(orient="records")
+    save_data(stored_data)
+
+    return updated_data
+
 
 def get_us_gdp():
-    """Get US GDP data from FRED API."""
-    start_date = "2023-01-01"
-    end_date = "2023-12-31"
-    return fetch_fred_data("GDP", start_date, end_date)
+    """Get accumulated U.S. GDP data."""
+    return get_updated_data("GDP", "us_gdp")
+
 
 def get_unemployment_rate():
-    """Get US Unemployment Rate data from FRED API."""
-    start_date = "2023-01-01"
-    end_date = "2023-12-31"
-    return fetch_fred_data("UNRATE", start_date, end_date)
+    """Get accumulated Unemployment Rate data."""
+    return get_updated_data("UNRATE", "unemployment_rate")
+
 
 def get_financial_stress_index():
-    """Get Financial Stress Index data from FRED API."""
-    start_date = "2023-01-01"
-    end_date = "2023-12-31"
-    return fetch_fred_data("STLFSI2", start_date, end_date)
+    """Get accumulated Financial Stress Index data."""
+    return get_updated_data("STLFSI2", "financial_stress")
+
 
 def get_global_stock_indices():
     """Get Global Stock Indices data from Trading Economics API."""
