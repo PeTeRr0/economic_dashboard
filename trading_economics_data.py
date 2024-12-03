@@ -13,17 +13,21 @@ def fetch_trading_economics_data(endpoint):
         "c": TRADING_ECONOMICS_API_KEY,
         "f": "json",
     }
-    response = requests.get(url, params=params)
     try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()  # Raise an error if the request failed
         data = response.json()
-        if isinstance(data, list):
-            return pd.DataFrame(data)
-        else:
-            return pd.DataFrame()  # Return empty DataFrame if response is not a list
-    except (ValueError, requests.RequestException) as e:
-        # Return an empty DataFrame if there's an error with the request or JSON decoding
-        print(f"Error fetching data from Trading Economics: {e}")
+    except requests.exceptions.RequestException as e:
+        print(f"HTTP Request failed: {e}")
         return pd.DataFrame()
+    except json.JSONDecodeError:
+        print("Error decoding JSON response")
+        return pd.DataFrame()
+
+    if isinstance(data, list):
+        return pd.DataFrame(data)
+    else:
+        return pd.DataFrame()  # Return empty DataFrame if the response is not a valid list
 
 
 def get_global_stock_indices():
