@@ -23,6 +23,7 @@ options = st.sidebar.selectbox(
 if options == "Overview":
     st.title("💹 Economic Dashboard")
     st.write("Welcome to the Economic Dashboard! This tool provides a real-time overview of key economic indicators.")
+
 elif options == "U.S. GDP":
     st.header("U.S. Gross Domestic Product (GDP)")
     df_gdp = get_us_gdp()
@@ -30,6 +31,9 @@ elif options == "U.S. GDP":
         st.line_chart(df_gdp.set_index("Date")["Value"])
         st.write("Recent GDP Data")
         st.write(df_gdp.tail())
+    else:
+        st.warning("No GDP data available for the last 100 days. Please check your API key or data source.")
+
 elif options == "U.S. Unemployment Rate":
     st.header("U.S. Unemployment Rate")
     df_unemployment = get_unemployment_rate()
@@ -37,6 +41,9 @@ elif options == "U.S. Unemployment Rate":
         st.line_chart(df_unemployment.set_index("Date")["Value"])
         st.write("Recent Unemployment Data")
         st.write(df_unemployment.tail())
+    else:
+        st.warning("No Unemployment Rate data available for the last 100 days. Please check your API key or data source.")
+
 elif options == "Overall Risk Index":
     st.header("Overall Financial Stress Index")
     df_stress = get_financial_stress_index()
@@ -44,9 +51,14 @@ elif options == "Overall Risk Index":
         st.line_chart(df_stress.set_index("Date")["Value_Percent"])
         st.write("Recent Financial Stress Index Data")
         st.write(df_stress.tail())
+    else:
+        st.warning("No Financial Stress Index data available for the last 100 days. Please check your API key or data source.")
+
 elif options == "Global Stock Indices":
     st.header("Global Stock Market Indices")
     df_indices = get_global_stock_indices()
     if not df_indices.empty:
         st.write("Real-Time Global Stock Indices")
         st.dataframe(df_indices.head(50))
+    else:
+        st.warning("No stock market data available. Please check your API key or data source.")
